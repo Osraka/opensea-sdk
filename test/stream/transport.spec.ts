@@ -417,6 +417,29 @@ describe("subscribe acknowledgement", () => {
     transport.disconnect()
   })
 
+  test("a caller removed by another join callback is not notified", async () => {
+    const transport = makeTransport()
+    transport.connect()
+    await flushMicrotasks()
+
+    let offSecond = () => {}
+    const first = vi.fn(() => offSecond())
+    const second = vi.fn()
+    transport
+      .subscribe("collection:c1", undefined, { onSubscribed: first })
+      .on(EventType.ITEM_SOLD, vi.fn())
+    offSecond = transport
+      .subscribe("collection:c1", undefined, { onSubscribed: second })
+      .on(EventType.ITEM_SOLD, vi.fn())
+
+    const [, ref, topic] = server.framesOfType("phx_join")[0]
+    server.send(encodeReply({ ref: ref as string, topic }))
+
+    expect(first).toHaveBeenCalledTimes(1)
+    expect(second).not.toHaveBeenCalled()
+    transport.disconnect()
+  })
+
   test("removing a handler in its join error callback does not skip the next caller", async () => {
     const transport = makeTransport()
     transport.connect()
